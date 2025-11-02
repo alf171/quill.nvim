@@ -9,6 +9,42 @@ local function create_floating_window(config)
 	return { buf = buf, win = win }
 end
 
+local create_window_configuration = function()
+	--- extra window for the title
+	local windows = {
+		background = {
+			relative = "editor",
+			width = vim.o.columns,
+			height = vim.o.columns,
+			style = "minimal",
+			col = 0,
+			row = 0,
+			zindex = 1,
+		},
+		header = {
+			relative = "editor",
+			width = vim.o.columns,
+			height = 1,
+			style = "minimal",
+			-- border = "rounded",
+			col = 0,
+			row = 0,
+			zindex = 2,
+		},
+		body = {
+			relative = "editor",
+			width = vim.o.columns - 10,
+			height = vim.o.lines - 5,
+			style = "minimal",
+			-- border = { "", "", "", "", "", "", "", "" },
+			row = 1,
+			col = 10,
+		},
+		-- footer
+	}
+	return windows
+end
+
 -- no config yet
 M.setup = function() end
 
@@ -72,39 +108,7 @@ M.start_presentation = function(opts)
 
 	local parsed = parse_slides(lines)
 
-	--- extra window for the title
-	---@type vim.api.keyset.win_config
-	local windows = {
-		background = {
-			relative = "editor",
-			width = vim.o.columns,
-			height = vim.o.columns,
-			style = "minimal",
-			col = 0,
-			row = 0,
-			zindex = 1,
-		},
-		header = {
-			relative = "editor",
-			width = vim.o.columns,
-			height = 1,
-			style = "minimal",
-			-- border = "rounded",
-			col = 0,
-			row = 0,
-			zindex = 2,
-		},
-		body = {
-			relative = "editor",
-			width = vim.o.columns - 10,
-			height = vim.o.lines - 5,
-			style = "minimal",
-			-- border = { "", "", "", "", "", "", "", "" },
-			row = 1,
-			col = 10,
-		},
-		-- footer
-	}
+	local windows = create_window_configuration()
 
 	local bg_float = create_floating_window(windows.background)
 	local header_float = create_floating_window(windows.header)
@@ -172,6 +176,22 @@ M.start_presentation = function(opts)
 
 			pcall(vim.api.nvim_win_close, bg_float.win, true)
 			pcall(vim.api.nvim_win_close, header_float.win, true)
+		end,
+	})
+
+	vim.api.nvim_create_autocmd("VimResized", {
+		group = vim.api.nvim_create_augroup("present-resize", {}),
+		callback = function()
+			if not vim.api.nvim_win_is_valid(body_float.win) then
+				return
+			end
+
+			local updated = create_window_configuration()
+			vim.api.nvim_win_set_config(header_float.win, updated.header)
+			vim.api.nvim_win_set_config(bg_float.win, updated.background)
+			vim.api.nvim_win_set_config(body_float.win, updated.body)
+
+			set_slide_content(current_slide)
 		end,
 	})
 end
