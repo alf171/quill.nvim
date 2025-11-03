@@ -2,6 +2,10 @@
 
 first slide
 
+```lua
+print("hi")
+```
+
 # bar
 
 second slide

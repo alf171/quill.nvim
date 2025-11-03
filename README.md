@@ -2,11 +2,6 @@
 
 todo list plugin
 
-# Usage
-```lua
-require("quill").<TODO> {
-  ...
-}
-```
+# Credit
 
-use `n` and `p` to go between different days notes
+following teej_dv advent of neovim writing a plugin as a starting point
