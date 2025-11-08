@@ -1,308 +1,152 @@
-local M = {}
+local quill_config = require("quill_config")
 
-local function create_floating_window(config, enter)
-	if enter == nil then
-		enter = false
+-- TODO: these should be defaults an config should be hoisted into dotfiles
+-- TODO: consider setting M as first param and using M:
+local M = {
+	config = {
+		notes_path = "~/Desktop/notes/",
+		keymaps = {
+			open = "<leader>td",
+			close = "q",
+			previous = "<C-p>",
+			next = "<C-n>",
+		},
+	},
+	state = {
+		filename = nil,
+		full_filename = nil,
+		body = {
+			win = nil,
+			buf = nil,
+		},
+		footer = {
+			win = nil,
+			buf = nil,
+		},
+	},
+}
+
+-- M.setup = function(opts)
+-- 	opts = opts or {}
+-- end
+
+M.setup_notes_file = function()
+	local date = os.date("%Y-%m-%d")
+	local expanded_notes_path = vim.fn.expand(M.config.notes_path)
+
+	M.filename = "quill_" .. date .. ".txt"
+	M.full_filename = expanded_notes_path .. M.filename
+
+	if not vim.fn.filereadable(M.full_filename) == 1 then
+		local file = io.open(M.full_filename, "w")
+
+		if file then
+			file:write("")
+			file:close()
+			print("Created successfully!")
+		else
+			print("error creating quill notes file")
+		end
 	end
-	local buf = vim.api.nvim_create_buf(false, true)
-	local win = vim.api.nvim_open_win(buf, false or enter, config)
+end
+
+M.place_todays_quote = function()
+	local file = io.open(M.full_filename, "r+")
+	if file == nil then
+		print("error fetching file when placing quote")
+		return
+	end
+	local line = file:read("*l")
+	if line and line:match("^#") then
+		file:close()
+		return
+	end
+	local json = vim.fn.system("curl -s https://zenquotes.io/api/random")
+	local ok, decoded = pcall(vim.fn.json_decode, json)
+	local quote = nil
+	local author = nil
+	if ok then
+		quote = decoded[1].q
+		author = decoded[1].a
+	else
+		print("error fetching quote")
+		file:close()
+		return
+	end
+	file:write("# " .. quote .. " [" .. author .. "]")
+	print("writing quote to file")
+	file:flush()
+	file:close()
+end
+
+--- @class quill.Window
+--- @field buf integer
+--- @field win integer
+
+--- @return quill.Window
+local create_floating_window = function(config, filepath, enter)
+	if enter == nil then
+		enter = true
+	end
+
+	local buf = vim.api.nvim_create_buf(true, true)
+
+	vim.api.nvim_buf_call(buf, function()
+		vim.cmd("silent edit " .. vim.fn.fnameescape(filepath))
+	end)
+
+	local win = vim.api.nvim_open_win(buf, enter, config)
+
+	vim.bo[buf].modifiable = true
+	vim.bo[buf].buftype = ""
+	vim.bo[buf].buflisted = true
+	vim.bo[buf].bufhidden = "wipe"
+	vim.bo[buf].swapfile = true
+	vim.bo[buf].filetype = "markdown"
 
 	return { buf = buf, win = win }
 end
 
-local create_window_configuration = function()
-	--- extra window for the title
-	local windows = {
-		background = {
-			relative = "editor",
-			width = vim.o.columns,
-			height = vim.o.lines,
-			style = "minimal",
-			col = 0,
-			row = 0,
-			zindex = 1,
-		},
-		header = {
-			relative = "editor",
-			width = vim.o.columns,
-			height = 1,
-			style = "minimal",
-			border = "rounded",
-			col = 0,
-			row = 0,
-			zindex = 2,
-		},
-		body = {
-			relative = "editor",
-			width = vim.o.columns - 10,
-			height = vim.o.lines - 5,
-			style = "minimal",
-			-- border = { "", "", "", "", "", "", "", "" },
-			row = 4,
-			col = 10,
-		},
-		footer = {
-			relative = "editor",
-			width = vim.o.columns,
-			height = 1,
-			style = "minimal",
-			col = 0,
-			row = vim.o.lines - 1,
-			zindex = 3,
-		},
-	}
-	return windows
+-- TODO: closing footer
+M.open_floating_window = function()
+	local windows = quill_config.create_window_configuration()
+	vim.keymap.set("n", M.config.keymaps.open, function()
+		local body = create_floating_window(windows.body, M.full_filename)
+		M.state.body.buf = body.buf
+		M.state.body.win = body.win
+		-- TODO: footer should be a scratch buffer unlike body
+		-- TODO: footer also shouldn't get focused -- pull out some props of creat floating a set on call :)
+		local footer = create_floating_window(windows.footer, M.full_filename)
+		M.state.footer.buf = footer.buf
+		M.state.footer.win = footer.win
+		vim.api.nvim_buf_set_lines(M.state.footer.buf, 0, -1, false, { M.filename })
+	end)
 end
 
--- no config yet
-M.setup = function() end
-
----@class present.Slide
----@field slides present.Slide[]
----@field blocks present.Block[]: a codeblock inside a side
-
----@class present.Block
----@field language string: language of the blck
----@field body string: body of the block
-
----@class present.Slide
----@field title string title of the slide
----@field body string body of the side
-
---- parse some lines
----@param lines present.Block[] lines
----@return present.Slide
-local parse_slides = function(lines)
-	local slides = { slides = {} }
-	local current_slide = {
-		title = "",
-		body = {},
-		blocks = {},
-	}
-
-	local seperator = "^#"
-
-	for _, line in ipairs(lines) do
-		if line:find(seperator) then
-			if #current_slide.title > 0 then
-				table.insert(slides.slides, current_slide)
-			end
-
-			current_slide = {
-				title = line,
-				body = {},
-				blocks = {},
-			}
-		else
-			table.insert(current_slide.body, line)
-		end
-	end
-
-	table.insert(slides.slides, current_slide)
-
-	for _, slide in ipairs(slides.slides) do
-		local block = {
-			language = nil,
-			body = "",
-		}
-		local inside_block = false
-		for _, line in ipairs(slide.body) do
-			if vim.startswith(line, "```") then
-				if not inside_block then
-					inside_block = true
-					block.language = string.sub(line, 4)
-				else
-					inside_block = false
-					block.body = vim.trim(block.body)
-					table.insert(slide.blocks, block)
-				end
-				-- inside a block but not gaurd so insert text
-			else
-				if inside_block then
-					block.body = block.body .. line .. "\n"
-				end
-			end
-		end
-	end
-
-	return slides
-end
-
-local state = {
-	current_slide = 1,
-	parsed = {},
-	floats = {},
-}
-
-local foreach_float = function(cb)
-	for name, config in pairs(state.floats) do
-		cb(name, config)
-	end
-end
-
-local present_keymap = function(mode, key, callback)
-	vim.keymap.set(mode, key, callback, {
-		buffer = state.floats.body_float.buf,
-	})
-end
-
-M.start_presentation = function(opts)
-	opts = opts or {}
-
-	local lines = {}
-	if opts.file then
-		local path = vim.fn.expand(opts.file)
-		local f = io.open(path, "r")
-		if not f then
-			vim.notify("Could not open file: " .. path, vim.log.levels.ERROR)
-			return
-		end
-
-		for line in f:lines() do
-			table.insert(lines, line)
-		end
-		f:close()
-	else
-		vim.notify("No file provided")
-	end
-
-	state.file = vim.fn.expand("%:t")
-	state.parsed = parse_slides(lines)
-
-	local windows = create_window_configuration()
-
-	state.floats.bg_float = create_floating_window(windows.background, true)
-	state.floats.header_float = create_floating_window(windows.header, true)
-	state.floats.body_float = create_floating_window(windows.body, true)
-	state.floats.footer = create_floating_window(windows.footer, true)
-
-	foreach_float(function(_, float)
-		vim.bo[float.buf].filetype = "markdown"
-	end)
-
-	local set_slide_content = function(idx)
-		local slide = state.parsed.slides[idx]
-
-		local pad = math.floor((vim.o.columns - vim.fn.strdisplaywidth(slide.title)) / 2)
-		local padding = string.rep(" ", math.max(pad, 0))
-		local title = padding .. slide.title
-		vim.api.nvim_buf_set_lines(state.floats.header_float.buf, 0, -1, false, { title })
-		vim.api.nvim_buf_set_lines(state.floats.body_float.buf, 0, -1, false, slide.body)
-		local footer = string.format("  %d / %d | %s", state.current_slide, #state.parsed.slides, state.file)
-		vim.api.nvim_buf_set_lines(state.floats.footer.buf, 0, -1, false, { footer })
-	end
-
-	state.current_slide = 1
-	set_slide_content(state.current_slide)
-
-	present_keymap("n", "n", function()
-		state.current_slide = math.min(state.current_slide + 1, #state.parsed.slides)
-		set_slide_content(state.current_slide)
-	end)
-
-	present_keymap("n", "p", function()
-		state.current_slide = math.max(state.current_slide - 1, 1)
-		set_slide_content(state.current_slide)
-	end)
-
-	present_keymap("n", "q", function()
-		vim.api.nvim_win_close(state.floats.body_float.win, true)
-	end)
-
-	present_keymap("n", "X", function()
-		local slide = state.parsed.slides[state.current_slide]
-		-- just works for lua
-		local block = slide.blocks[1]
-		if not block then
-			print("No blocks on this page")
-			return
-		end
-
-		local original_print = print
-		local output = { "", "# Code", "```" .. block.language }
-		vim.list_extend(output, vim.split(block.body, "\n"))
-		table.insert(output, "```")
-
-		print = function(...)
-			local args = { ... }
-			local message = table.concat(vim.tbl_map(tostring, args), "\t")
-			table.insert(output, message)
-		end
-
-		local chunk = loadstring(block.body)
-		pcall(function()
-			table.insert(output, "")
-			table.insert(output, "# Output")
-			table.insert(output, "")
-			load(table.concat(block, "\n"))()
-			if not chunk then
-				table.insert(output, "<<<BROKEN CODE>>>")
-			else
-				chunk()
-			end
-		end)
-
-		print = original_print
-
-		local buf = vim.api.nvim_create_buf(false, true)
-		local temp_width = math.floor(vim.o.columns * 0.8)
-		local temp_height = math.floor(vim.o.lines * 0.8)
-		vim.api.nvim_open_win(buf, true, {
-			relative = "editor",
-			style = "minimal",
-			noautocmd = true,
-			width = temp_width,
-			height = temp_height,
-			row = math.floor((vim.o.lines - temp_height) / 2),
-			col = math.floor((vim.o.columns - temp_width) / 2),
-			border = "rounded",
-		})
-		vim.bo[buf].filetype = "markdown"
-		vim.api.nvim_buf_set_lines(buf, 0, -1, false, output)
-	end)
-
-	-- modify some user state and restore it
-	local restore = {
-		cmdheight = {
-			original = vim.o.cmdheight,
-			present = 0,
-		},
-	}
-
-	for option, config in pairs(restore) do
-		vim.opt[option] = config.present
-	end
-
-	vim.api.nvim_create_autocmd("BufLeave", {
-		buffer = state.floats.body_float.buf,
-		callback = function()
-			for option, config in pairs(restore) do
-				vim.opt[option] = config.original
-			end
-
-			foreach_float(function(_, float)
-				pcall(vim.api.nvim_win_close, float.win, true)
-			end)
-		end,
-	})
-
+-- TODO: antoher autocommand. This one will listen to see if body is closed
+-- If so, close footer along with it
+M.setup_autocommands = function()
 	vim.api.nvim_create_autocmd("VimResized", {
-		group = vim.api.nvim_create_augroup("present-resize", {}),
+		group = vim.api.nvim_create_augroup("quill-resize", {}),
 		callback = function()
-			if not vim.api.nvim_win_is_valid(state.floats.body_float.win) then
+			if not vim.api.nvim_win_is_valid(M.state.body.win) then
 				return
 			end
 
-			local updated = create_window_configuration()
-			vim.api.nvim_win_set_config(state.floats.header_float.win, updated.header)
-			vim.api.nvim_win_set_config(state.floats.bg_float.win, updated.background)
-			vim.api.nvim_win_set_config(state.floats.body_float.win, updated.body)
-
-			set_slide_content(state.current_slide)
+			local updated = quill_config.create_window_configuration()
+			vim.api.nvim_win_set_config(M.state.body.win, updated.body)
+			vim.api.nvim_win_set_config(M.state.footer.win, updated.footer)
 		end,
 	})
+	-- vim.api.nvim_create_autocmd("quill-resize", {})
 end
 
-M.start_presentation({ file = "tst/buf" })
+-- TODO: add support for going forward and backward in todays notes
+-- TODO: render file in markdown (external plugin?)
+
+M.setup_notes_file()
+M.place_todays_quote()
+M.open_floating_window()
+M.setup_autocommands()
 
 return M
