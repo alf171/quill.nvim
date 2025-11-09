@@ -100,22 +100,20 @@ local create_floating_window = function(config, filepath, enter, scratch)
 	if scratch then
 		vim.bo[buf].buftype = "nofile"
 		vim.bo[buf].swapfile = false
-		vim.bo[buf].buflisted = false
 		vim.bo[buf].bufhidden = "wipe"
 	else
 		vim.bo[buf].buftype = ""
 		vim.bo[buf].swapfile = false
-		vim.bo[buf].buflisted = true
 		vim.bo[buf].bufhidden = "hide"
 	end
 
+	vim.bo[buf].buflisted = false
 	vim.bo[buf].modifiable = true
 	vim.bo[buf].filetype = "markdown"
 
 	return { buf = buf, win = win }
 end
 
--- TODO: closing footer
 M.open_floating_window = function()
 	local windows = quill_config.create_window_configuration()
 	vim.keymap.set("n", M.config.keymaps.open, function()
@@ -127,9 +125,8 @@ M.open_floating_window = function()
 	end)
 end
 
--- TODO: antoher autocommand. This one will listen to see if body is closed
--- If so, close footer along with it
 M.setup_autocommands = function()
+	-- resize windows on terminal resizing
 	vim.api.nvim_create_autocmd("VimResized", {
 		group = vim.api.nvim_create_augroup("quill-resize", {}),
 		callback = function()
@@ -142,7 +139,19 @@ M.setup_autocommands = function()
 			vim.api.nvim_win_set_config(M.state.footer.win, updated.footer)
 		end,
 	})
-	-- vim.api.nvim_create_autocmd("quill-resize", {})
+
+	-- close footer when body is closed
+	vim.api.nvim_create_autocmd({ "WinClosed" }, {
+		callback = function(args)
+			local closed_win = tonumber(args.match)
+			if closed_win == M.state.body.win then
+				local footer_window = M.state.footer.win
+				if vim.api.nvim_win_is_valid(footer_window) then
+					vim.api.nvim_win_close(footer_window, true)
+				end
+			end
+		end,
+	})
 end
 
 -- TODO: add support for going forward and backward in todays notes
