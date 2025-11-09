@@ -22,7 +22,7 @@ M.create_window_configuration = function()
 			width = width,
 			height = 1,
 			style = "minimal",
-			col = col,
+			col = col + 1,
 			row = row + height - 1,
 			zindex = 2,
 		},

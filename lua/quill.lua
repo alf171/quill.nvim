@@ -37,7 +37,7 @@ M.setup_notes_file = function()
 	M.filename = "quill_" .. date .. ".txt"
 	M.full_filename = expanded_notes_path .. M.filename
 
-	if not vim.fn.filereadable(M.full_filename) == 1 then
+	if vim.fn.filereadable(M.full_filename) ~= 1 then
 		local file = io.open(M.full_filename, "w")
 
 		if file then
@@ -84,24 +84,32 @@ end
 --- @field win integer
 
 --- @return quill.Window
-local create_floating_window = function(config, filepath, enter)
-	if enter == nil then
-		enter = false
+local create_floating_window = function(config, filepath, enter, scratch)
+	local listed = not scratch
+	local buf
+
+	if scratch then
+		buf = vim.api.nvim_create_buf(listed, scratch)
+	else
+		buf = vim.fn.bufadd(filepath)
+		vim.fn.bufload(buf)
 	end
-
-	local buf = vim.api.nvim_create_buf(true, true)
-
-	vim.api.nvim_buf_call(buf, function()
-		vim.cmd("silent edit " .. vim.fn.fnameescape(filepath))
-	end)
 
 	local win = vim.api.nvim_open_win(buf, enter, config)
 
+	if scratch then
+		vim.bo[buf].buftype = "nofile"
+		vim.bo[buf].swapfile = false
+		vim.bo[buf].buflisted = false
+		vim.bo[buf].bufhidden = "wipe"
+	else
+		vim.bo[buf].buftype = ""
+		vim.bo[buf].swapfile = false
+		vim.bo[buf].buflisted = true
+		vim.bo[buf].bufhidden = "hide"
+	end
+
 	vim.bo[buf].modifiable = true
-	vim.bo[buf].buftype = ""
-	vim.bo[buf].buflisted = true
-	vim.bo[buf].bufhidden = "wipe"
-	vim.bo[buf].swapfile = true
 	vim.bo[buf].filetype = "markdown"
 
 	return { buf = buf, win = win }
@@ -111,13 +119,10 @@ end
 M.open_floating_window = function()
 	local windows = quill_config.create_window_configuration()
 	vim.keymap.set("n", M.config.keymaps.open, function()
-		local body = create_floating_window(windows.body, M.full_filename, true)
-		M.state.body.buf = body.buf
-		M.state.body.win = body.win
-		-- TODO: footer should be a scratch buffer unlike body
-		local footer = create_floating_window(windows.footer, M.full_filename)
-		M.state.footer.buf = footer.buf
-		M.state.footer.win = footer.win
+		local body = create_floating_window(windows.body, M.full_filename, true, false)
+		M.state.body = body
+		local footer = create_floating_window(windows.footer, M.full_filename, false, true)
+		M.state.footer = footer
 		vim.api.nvim_buf_set_lines(M.state.footer.buf, 0, -1, false, { M.filename })
 	end)
 end
