@@ -25,6 +25,7 @@ M.create_window_configuration = function()
 			col = col + 1,
 			row = row + height - 1,
 			zindex = 2,
+			focusable = false,
 		},
 	}
 	return windows
