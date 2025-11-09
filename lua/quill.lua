@@ -1,4 +1,5 @@
 local quill_config = require("quill_config")
+local quill_helpers = require("quill_helpers")
 
 -- TODO: these should be defaults an config should be hoisted into dotfiles
 -- TODO: consider setting M as first param and using M:
@@ -8,7 +9,7 @@ local M = {
 		keymaps = {
 			open = "<leader>td",
 			close = "q",
-			previous = "<C-p>",
+			prev = "<C-p>",
 			next = "<C-n>",
 		},
 	},
@@ -50,6 +51,36 @@ M.setup_notes_file = function()
 	end
 end
 
+--- @param days number: number of days to go forward if positive of backward if negative
+--- @return { filename: string, full_filename: string } | nil: return yesterday's notes if they exist. Otherwise, nil
+M.get_other_notes = function(days)
+	-- Assume M.filename = "quill_2025-11-09.txt"
+	local date_str = M.filename:match("quill_(%d%d%d%d%-%d%d%-%d%d)%.txt")
+	if not date_str then
+		error("Invalid filename format: " .. M.filename)
+	end
+
+	local year, month, day = date_str:match("(%d+)%-(%d+)%-(%d+)")
+	local current_time = os.time({
+		year = year,
+		month = month,
+		day = day,
+	})
+	local prev_time = current_time + (24 * 60 * 60 * days)
+	local prev_date = os.date("%Y-%m-%d", prev_time)
+
+	local prev_filename = "quill_" .. prev_date .. ".txt"
+	local prev_full_filename = vim.fn.expand(M.config.notes_path) .. prev_filename
+
+	print("check if file " .. prev_full_filename .. "exists!!")
+	if vim.fn.filereadable(prev_full_filename) == 1 then
+		print("it does exist!")
+		return { filename = prev_filename, full_filename = prev_full_filename }
+	end
+
+	return nil
+end
+
 M.place_todays_quote = function()
 	local file = io.open(M.full_filename, "r+")
 	if file == nil then
@@ -79,50 +110,75 @@ M.place_todays_quote = function()
 	file:close()
 end
 
---- @class quill.Window
---- @field buf integer
---- @field win integer
-
---- @return quill.Window
-local create_floating_window = function(config, filepath, enter, scratch)
-	local listed = not scratch
-	local buf
-
-	if scratch then
-		buf = vim.api.nvim_create_buf(listed, scratch)
-	else
-		buf = vim.fn.bufadd(filepath)
-		vim.fn.bufload(buf)
-	end
-
-	local win = vim.api.nvim_open_win(buf, enter, config)
-
-	if scratch then
-		vim.bo[buf].buftype = "nofile"
-		vim.bo[buf].swapfile = false
-		vim.bo[buf].bufhidden = "wipe"
-	else
-		vim.bo[buf].buftype = ""
-		vim.bo[buf].swapfile = false
-		vim.bo[buf].bufhidden = "hide"
-	end
-
-	vim.bo[buf].buflisted = false
-	vim.bo[buf].modifiable = true
-	vim.bo[buf].filetype = "markdown"
-
-	return { buf = buf, win = win }
+-- TODO: share logic with #open_floating_window
+M.open_floating_window_cmd = function()
+	local windows = quill_config.create_window_configuration()
+	vim.keymap.set("n", M.config.keymaps.open, function()
+		local body = quill_helpers.create_floating_window(windows.body, M.full_filename, true, false)
+		M.state.body = body
+		local footer = quill_helpers.create_floating_window(windows.footer, M.full_filename, false, true)
+		M.state.footer = footer
+		vim.api.nvim_buf_set_lines(M.state.footer.buf, 0, -1, false, { M.filename })
+		M.set_local_commands()
+	end)
 end
 
 M.open_floating_window = function()
 	local windows = quill_config.create_window_configuration()
-	vim.keymap.set("n", M.config.keymaps.open, function()
-		local body = create_floating_window(windows.body, M.full_filename, true, false)
-		M.state.body = body
-		local footer = create_floating_window(windows.footer, M.full_filename, false, true)
-		M.state.footer = footer
-		vim.api.nvim_buf_set_lines(M.state.footer.buf, 0, -1, false, { M.filename })
-	end)
+	local body = quill_helpers.create_floating_window(windows.body, M.full_filename, true, false)
+	M.state.body = body
+	local footer = quill_helpers.create_floating_window(windows.footer, M.full_filename, false, true)
+	M.state.footer = footer
+	vim.api.nvim_buf_set_lines(M.state.footer.buf, 0, -1, false, { M.filename })
+	M.set_local_commands()
+end
+
+M.set_local_commands = function()
+	vim.keymap.set("n", M.config.keymaps.next, function()
+		print("going forward in notes")
+		local other_notes = M.get_other_notes(1)
+		if other_notes == nil then
+			print("forward notes don't exist!")
+			return
+		end
+		M.filename = other_notes.filename
+		M.full_filename = other_notes.full_filename
+		M.cleanup()
+		M.open_floating_window()
+	end, {
+		buffer = M.state.body.buf,
+		silent = true,
+	})
+
+	vim.keymap.set("n", M.config.keymaps.prev, function()
+		print("would go backwards in notes")
+		local other_notes = M.get_other_notes(-1)
+		if other_notes == nil then
+			print("backward notes don't exist!")
+			return
+		end
+		M.filename = other_notes.filename
+		M.full_filename = other_notes.full_filename
+		M.cleanup()
+		M.open_floating_window()
+	end, {
+		buffer = M.state.body.buf,
+		silent = true,
+	})
+end
+
+M.cleanup = function()
+	if vim.api.nvim_win_is_valid(M.state.body.win) then
+		vim.api.nvim_win_close(M.state.body.win, true)
+		M.state.body.win = nil
+		M.state.body.buf = nil
+	end
+	if vim.api.nvim_win_is_valid(M.state.footer.win) then
+		vim.api.nvim_win_close(M.state.footer.win, true)
+		M.state.body.win = nil
+		M.state.footer.buf = nil
+		M.state.footer.win = nil
+	end
 end
 
 M.setup_autocommands = function()
@@ -154,12 +210,11 @@ M.setup_autocommands = function()
 	})
 end
 
--- TODO: add support for going forward and backward in todays notes
 -- TODO: render file in markdown (external plugin?)
 
 M.setup_notes_file()
 M.place_todays_quote()
-M.open_floating_window()
+M.open_floating_window_cmd()
 M.setup_autocommands()
 
 return M

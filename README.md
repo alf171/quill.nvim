@@ -11,3 +11,4 @@ following teej_dv advent of neovim writing a plugin as a starting point
 # Commands
 
 - Open notes with <leader>td
+- Cycle between previous notes and tomorrows notes with <C-p>, <C-n>
