@@ -86,7 +86,7 @@ end
 --- @return quill.Window
 local create_floating_window = function(config, filepath, enter)
 	if enter == nil then
-		enter = true
+		enter = false
 	end
 
 	local buf = vim.api.nvim_create_buf(true, true)
@@ -111,11 +111,10 @@ end
 M.open_floating_window = function()
 	local windows = quill_config.create_window_configuration()
 	vim.keymap.set("n", M.config.keymaps.open, function()
-		local body = create_floating_window(windows.body, M.full_filename)
+		local body = create_floating_window(windows.body, M.full_filename, true)
 		M.state.body.buf = body.buf
 		M.state.body.win = body.win
 		-- TODO: footer should be a scratch buffer unlike body
-		-- TODO: footer also shouldn't get focused -- pull out some props of creat floating a set on call :)
 		local footer = create_floating_window(windows.footer, M.full_filename)
 		M.state.footer.buf = footer.buf
 		M.state.footer.win = footer.win
