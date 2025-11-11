@@ -1,16 +1,22 @@
 local quill_config = require("quill_config")
 local quill_helpers = require("quill_helpers")
 
--- TODO: these should be defaults an config should be hoisted into dotfiles
--- TODO: consider setting M as first param and using M:
+local default_config = {
+	notes_path = "~",
+	keymaps = {
+		open = "<leader>td",
+		close = "",
+		prev = "<C-p>",
+		next = "<C-n>",
+	},
+}
 local M = {
 	config = {
-		notes_path = "~",
+		notes_path = nil,
 		keymaps = {
-			open = "<leader>td",
-			close = "",
-			prev = "<C-p>",
-			next = "<C-n>",
+			open = nil,
+			prev = nil,
+			next = nil,
 		},
 	},
 	state = {
@@ -28,7 +34,7 @@ local M = {
 }
 
 M.init = function(opts)
-	M.config = opts or M.config
+	M.config = opts or default_config
 end
 
 M.setup_notes_file = function()
