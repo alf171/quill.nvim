@@ -5,10 +5,10 @@ local quill_helpers = require("quill_helpers")
 -- TODO: consider setting M as first param and using M:
 local M = {
 	config = {
-		notes_path = "~/Desktop/notes/",
+		notes_path = "~",
 		keymaps = {
 			open = "<leader>td",
-			close = "q",
+			close = "",
 			prev = "<C-p>",
 			next = "<C-n>",
 		},
@@ -27,9 +27,9 @@ local M = {
 	},
 }
 
--- M.setup = function(opts)
--- 	opts = opts or {}
--- end
+M.init = function(opts)
+	M.config = opts or M.config
+end
 
 M.setup_notes_file = function()
 	local date = os.date("%Y-%m-%d")
@@ -212,9 +212,12 @@ end
 
 -- TODO: render file in markdown (external plugin?)
 
-M.setup_notes_file()
-M.place_todays_quote()
-M.open_floating_window_cmd()
-M.setup_autocommands()
+M.setup = function(opts)
+	M.init(opts)
+	M.setup_notes_file()
+	M.place_todays_quote()
+	M.open_floating_window_cmd()
+	M.setup_autocommands()
+end
 
 return M
