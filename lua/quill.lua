@@ -45,7 +45,8 @@ M.setup_notes_file = function()
 	M.full_filename = expanded_notes_path .. M.filename
 
 	if vim.fn.filereadable(M.full_filename) ~= 1 then
-		local file = io.open(M.full_filename, "w")
+		local file, err = io.open(M.full_filename, "w")
+		print(err)
 
 		if file then
 			file:write("")
