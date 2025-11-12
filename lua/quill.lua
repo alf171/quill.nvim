@@ -46,14 +46,13 @@ M.setup_notes_file = function()
 
 	if vim.fn.filereadable(M.full_filename) ~= 1 then
 		local file, err = io.open(M.full_filename, "w")
-		print(err)
 
 		if file then
 			file:write("")
 			file:close()
 			print("Created successfully!")
 		else
-			print("error creating quill notes file")
+			print("error creating quill notes file: ", err)
 		end
 	end
 end
