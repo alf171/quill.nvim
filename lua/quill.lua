@@ -110,6 +110,7 @@ M.place_todays_quote = function()
 		file:close()
 		return
 	end
+	file:seek("set", 0)
 	file:write("# " .. quote .. " [" .. author .. "]")
 	print("writing quote to file")
 	file:flush()
