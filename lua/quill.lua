@@ -5,7 +5,7 @@ local default_config = {
 	notes_path = "~",
 	keymaps = {
 		open = "<leader>td",
-		close = "",
+		close = "q",
 		prev = "<C-p>",
 		next = "<C-n>",
 	},
@@ -17,6 +17,7 @@ local M = {
 			open = nil,
 			prev = nil,
 			next = nil,
+			close = nil,
 		},
 	},
 	state = {
@@ -158,7 +159,6 @@ M.set_local_commands = function()
 	})
 
 	vim.keymap.set("n", M.config.keymaps.prev, function()
-		print("would go backwards in notes")
 		local other_notes = M.get_other_notes(-1)
 		if other_notes == nil then
 			print("backward notes don't exist!")
@@ -172,6 +172,10 @@ M.set_local_commands = function()
 		buffer = M.state.body.buf,
 		silent = true,
 	})
+
+	vim.keymap.set("n", M.config.keymaps.close, function()
+		M.cleanup()
+	end)
 end
 
 M.cleanup = function()
