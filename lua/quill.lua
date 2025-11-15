@@ -10,6 +10,7 @@ local default_config = {
 		next = "<C-n>",
 	},
 }
+
 local M = {
 	config = {
 		notes_path = nil,
@@ -23,6 +24,7 @@ local M = {
 	state = {
 		filename = nil,
 		full_filename = nil,
+		cursor = 0,
 		body = {
 			win = nil,
 			buf = nil,
@@ -34,11 +36,11 @@ local M = {
 	},
 }
 
-M.init = function(opts)
+local init = function(opts)
 	M.config = opts or default_config
 end
 
-M.setup_notes_file = function()
+local setup_notes_file = function()
 	local date = os.date("%Y-%m-%d")
 	local expanded_notes_path = vim.fn.expand(M.config.notes_path)
 
@@ -88,7 +90,7 @@ M.get_other_notes = function(days)
 	return nil
 end
 
-M.place_todays_quote = function()
+local place_todays_quote = function()
 	local file = io.open(M.full_filename, "r+")
 	if file == nil then
 		print("error fetching file when placing quote")
@@ -118,56 +120,69 @@ M.place_todays_quote = function()
 	file:close()
 end
 
--- TODO: share logic with #open_floating_window
-M.open_floating_window_cmd = function()
-	local windows = quill_config.create_window_configuration()
-	vim.keymap.set("n", M.config.keymaps.open, function()
-		local body = quill_helpers.create_floating_window(windows.body, M.full_filename, true, false)
-		M.state.body = body
-		local footer = quill_helpers.create_floating_window(windows.footer, M.full_filename, false, true)
+---@param footer_config table the configuration to load the footer with
+---@param type '"UPDATE"'|'"CREATE"' the type of footer action to perform
+local render_footer = function(footer_config, type)
+	if type == "CREATE" then
+		local footer = quill_helpers.create_floating_window(footer_config, M.full_filename, false, true)
 		M.state.footer = footer
-		vim.api.nvim_buf_set_lines(M.state.footer.buf, 0, -1, false, { M.filename })
-		M.set_local_commands()
-	end)
+	end
+	local footer_content = M.filename .. " [" .. M.state.cursor .. "]"
+	vim.api.nvim_buf_set_lines(M.state.footer.buf, 0, -1, false, { footer_content })
 end
 
-M.open_floating_window = function()
+local open_floating_window = function()
 	local windows = quill_config.create_window_configuration()
 	local body = quill_helpers.create_floating_window(windows.body, M.full_filename, true, false)
 	M.state.body = body
-	local footer = quill_helpers.create_floating_window(windows.footer, M.full_filename, false, true)
-	M.state.footer = footer
-	vim.api.nvim_buf_set_lines(M.state.footer.buf, 0, -1, false, { M.filename })
+	-- local footer = quill_helpers.create_floating_window(windows.footer, M.full_filename, false, true)
+	-- M.state.footer = footer
+	-- local footer_content = M.filename .. " [" .. M.state.cursor .. "]"
+	-- vim.api.nvim_buf_set_lines(M.state.footer.buf, 0, -1, false, { footer_content })
+	render_footer(windows.footer, "CREATE")
 	M.set_local_commands()
+end
+
+local open_floating_window_cmd = function()
+	vim.keymap.set("n", M.config.keymaps.open, function()
+		open_floating_window()
+	end)
 end
 
 M.set_local_commands = function()
 	vim.keymap.set("n", M.config.keymaps.next, function()
-		print("going forward in notes")
-		local other_notes = M.get_other_notes(1)
+		M.state.cursor = M.state.cursor + 1
+		local other_notes = M.get_other_notes(M.state.cursor)
 		if other_notes == nil then
 			print("forward notes don't exist!")
+			render_footer(quill_config.create_window_configuration().footer, "UPDATE")
 			return
+		else
+			M.state.cursor = 0
 		end
 		M.filename = other_notes.filename
 		M.full_filename = other_notes.full_filename
 		M.cleanup()
-		M.open_floating_window()
+		open_floating_window()
 	end, {
 		buffer = M.state.body.buf,
 		silent = true,
 	})
 
 	vim.keymap.set("n", M.config.keymaps.prev, function()
-		local other_notes = M.get_other_notes(-1)
+		M.state.cursor = M.state.cursor - 1
+		local other_notes = M.get_other_notes(M.state.cursor)
 		if other_notes == nil then
 			print("backward notes don't exist!")
+			render_footer(quill_config.create_window_configuration().footer, "UPDATE")
 			return
+		else
+			M.state.cursor = 0
 		end
 		M.filename = other_notes.filename
 		M.full_filename = other_notes.full_filename
 		M.cleanup()
-		M.open_floating_window()
+		open_floating_window()
 	end, {
 		buffer = M.state.body.buf,
 		silent = true,
@@ -186,13 +201,12 @@ M.cleanup = function()
 	end
 	if vim.api.nvim_win_is_valid(M.state.footer.win) then
 		vim.api.nvim_win_close(M.state.footer.win, true)
-		M.state.body.win = nil
 		M.state.footer.buf = nil
 		M.state.footer.win = nil
 	end
 end
 
-M.setup_autocommands = function()
+local setup_autocommands = function()
 	-- resize windows on terminal resizing
 	vim.api.nvim_create_autocmd("VimResized", {
 		group = vim.api.nvim_create_augroup("quill-resize", {}),
@@ -224,11 +238,11 @@ end
 -- TODO: render file in markdown (external plugin?)
 
 M.setup = function(opts)
-	M.init(opts)
-	M.setup_notes_file()
-	M.place_todays_quote()
-	M.open_floating_window_cmd()
-	M.setup_autocommands()
+	init(opts)
+	setup_notes_file()
+	place_todays_quote()
+	open_floating_window_cmd()
+	setup_autocommands()
 end
 
 return M
