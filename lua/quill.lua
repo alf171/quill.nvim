@@ -131,21 +131,17 @@ local render_footer = function(footer_config, type)
 	vim.api.nvim_buf_set_lines(M.state.footer.buf, 0, -1, false, { footer_content })
 end
 
-local open_floating_window = function()
+M.open_floating_window = function()
 	local windows = quill_config.create_window_configuration()
 	local body = quill_helpers.create_floating_window(windows.body, M.full_filename, true, false)
 	M.state.body = body
-	-- local footer = quill_helpers.create_floating_window(windows.footer, M.full_filename, false, true)
-	-- M.state.footer = footer
-	-- local footer_content = M.filename .. " [" .. M.state.cursor .. "]"
-	-- vim.api.nvim_buf_set_lines(M.state.footer.buf, 0, -1, false, { footer_content })
 	render_footer(windows.footer, "CREATE")
 	M.set_local_commands()
 end
 
 local open_floating_window_cmd = function()
 	vim.keymap.set("n", M.config.keymaps.open, function()
-		open_floating_window()
+		M.open_floating_window()
 	end)
 end
 
@@ -163,7 +159,7 @@ M.set_local_commands = function()
 		M.filename = other_notes.filename
 		M.full_filename = other_notes.full_filename
 		M.cleanup()
-		open_floating_window()
+		M.open_floating_window()
 	end, {
 		buffer = M.state.body.buf,
 		silent = true,
@@ -182,7 +178,7 @@ M.set_local_commands = function()
 		M.filename = other_notes.filename
 		M.full_filename = other_notes.full_filename
 		M.cleanup()
-		open_floating_window()
+		M.open_floating_window()
 	end, {
 		buffer = M.state.body.buf,
 		silent = true,
@@ -235,6 +231,7 @@ local setup_autocommands = function()
 	})
 end
 
+-- TODO: add an oil.nvim like view of notes -- maybe even some higher order notes management?
 -- TODO: render file in markdown (external plugin?)
 
 M.setup = function(opts)
