@@ -140,9 +140,26 @@ local render_footer = function(footer_config, type)
 end
 
 M.open_floating_window = function()
+	if M.state.body.buf ~= nil then
+		debug_print("avoid reopening already open floating window")
+		return
+	end
+
 	local windows = quill_config.create_window_configuration()
 	local body = quill_helpers.create_floating_window(windows.body, M.full_filename, true, false)
 	M.state.body = body
+
+	vim.api.nvim_create_autocmd("BufWipeout", {
+		buffer = body.buf,
+		once = true,
+		callback = function()
+			M.state.body.win = nil
+			M.state.body.buf = nil
+			M.state.footer.win = nil
+			M.state.footer.buf = nil
+		end,
+	})
+
 	render_footer(windows.footer, "CREATE")
 	M.set_local_commands()
 end
@@ -150,7 +167,7 @@ end
 local open_floating_window_cmd = function()
 	vim.keymap.set("n", M.config.keymaps.open, function()
 		M.open_floating_window()
-	end)
+	end, { buffer = M.state.body.buf, nowait = true })
 end
 
 M.set_local_commands = function()
@@ -198,16 +215,23 @@ M.set_local_commands = function()
 end
 
 M.cleanup = function()
-	if vim.api.nvim_win_is_valid(M.state.body.win) then
+	debug_print("attempting a cleanup")
+	-- close the window
+	if M.state.body.win and vim.api.nvim_win_is_valid(M.state.body.win) then
 		vim.api.nvim_win_close(M.state.body.win, true)
-		M.state.body.win = nil
-		M.state.body.buf = nil
 	end
-	if vim.api.nvim_win_is_valid(M.state.footer.win) then
+	if M.state.footer.win and vim.api.nvim_win_is_valid(M.state.footer.win) then
 		vim.api.nvim_win_close(M.state.footer.win, true)
-		M.state.footer.buf = nil
-		M.state.footer.win = nil
 	end
+	--
+	-- -- close the buffer
+	-- if M.state.body.buf and vim.api.nvim_buf_is_valid(M.state.body.buf) then
+	-- 	vim.api.nvim_buf_delete(M.state.body.buf, { force = true })
+	-- end
+	--
+	-- if M.state.footer.buf and vim.api.nvim_buf_is_valid(M.state.footer.buf) then
+	-- 	vim.api.nvim_buf_delete(M.state.footer.buf, { force = true })
+	-- end
 end
 
 local setup_autocommands = function()

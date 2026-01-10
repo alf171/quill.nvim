@@ -25,7 +25,7 @@ M.create_floating_window = function(config, filepath, enter, scratch)
 	else
 		vim.bo[buf].buftype = ""
 		vim.bo[buf].swapfile = false
-		vim.bo[buf].bufhidden = "hide"
+		vim.bo[buf].bufhidden = "wipe"
 	end
 
 	vim.bo[buf].buflisted = false
