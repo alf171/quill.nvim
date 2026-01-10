@@ -9,6 +9,7 @@ local default_config = {
 		prev = "<C-p>",
 		next = "<C-n>",
 	},
+	debug = false,
 }
 
 local M = {
@@ -20,6 +21,7 @@ local M = {
 			next = nil,
 			close = nil,
 		},
+		debug = nil,
 	},
 	state = {
 		filename = nil,
@@ -40,6 +42,14 @@ local init = function(opts)
 	M.config = opts or default_config
 end
 
+--- debug print only prints if the debug field in config is set
+--- @param message string: the message to print
+local debug_print = function(message)
+	if M.config.debug then
+		print(message)
+	end
+end
+
 local setup_notes_file = function()
 	local date = os.date("%Y-%m-%d")
 	local expanded_notes_path = vim.fn.expand(M.config.notes_path)
@@ -53,7 +63,7 @@ local setup_notes_file = function()
 		if file then
 			file:write("")
 			file:close()
-			print("Created successfully!")
+			debug_print("Created successfully!")
 		else
 			print("error creating quill notes file: ", err)
 		end
@@ -81,9 +91,7 @@ M.get_other_notes = function(days)
 	local prev_filename = "quill_" .. prev_date .. ".txt"
 	local prev_full_filename = vim.fn.expand(M.config.notes_path) .. prev_filename
 
-	print("check if file " .. prev_full_filename .. "exists!!")
 	if vim.fn.filereadable(prev_full_filename) == 1 then
-		print("it does exist!")
 		return { filename = prev_filename, full_filename = prev_full_filename }
 	end
 
@@ -115,7 +123,7 @@ local place_todays_quote = function()
 	end
 	file:seek("set", 0)
 	file:write("# " .. quote .. " [" .. author .. "]")
-	print("writing quote to file")
+	debug_print("writing quote to file")
 	file:flush()
 	file:close()
 end
@@ -150,7 +158,7 @@ M.set_local_commands = function()
 		M.state.cursor = M.state.cursor + 1
 		local other_notes = M.get_other_notes(M.state.cursor)
 		if other_notes == nil then
-			print("forward notes don't exist!")
+			debug_print("forward notes don't exist!")
 			render_footer(quill_config.create_window_configuration().footer, "UPDATE")
 			return
 		else
@@ -169,7 +177,7 @@ M.set_local_commands = function()
 		M.state.cursor = M.state.cursor - 1
 		local other_notes = M.get_other_notes(M.state.cursor)
 		if other_notes == nil then
-			print("backward notes don't exist!")
+			debug_print("backward notes don't exist!")
 			render_footer(quill_config.create_window_configuration().footer, "UPDATE")
 			return
 		else
